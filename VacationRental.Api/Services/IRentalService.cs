@@ -6,7 +6,7 @@ namespace VacationRental.Api.Services
     {
         ResourceIdViewModel AddRental(RentalBindingModel rentalModel);
         RentalViewModel GetRental(int rentalId);
-
+        RentalViewModel UpdateRental(RentalViewModel rentalModel);
         bool RentalExist(int rentalId);
     }
 }

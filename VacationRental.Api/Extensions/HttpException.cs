@@ -17,26 +17,40 @@ namespace VacationRental.Api.Extensions
             this.httpStatusCode = (int)httpStatusCode;
         }
 
-        public HttpException(int httpStatusCode, string message) : base(message)
+        public HttpException(
+            int httpStatusCode, 
+            string message) : base(message)
         {
             this.httpStatusCode = httpStatusCode;
         }
 
-        public HttpException(HttpStatusCode httpStatusCode, string message) : base(message)
+        public HttpException(
+            HttpStatusCode httpStatusCode, 
+            string message) : base(message)
         {
             this.httpStatusCode = (int)httpStatusCode;
         }
 
-        public HttpException(int httpStatusCode, string message, Exception inner) : base(message, inner)
+        public HttpException(
+            int httpStatusCode, 
+            string message, 
+            Exception inner) : base(message, inner)
         {
             this.httpStatusCode = httpStatusCode;
         }
 
-        public HttpException(HttpStatusCode httpStatusCode, string message, Exception inner) : base(message, inner)
+        public HttpException(
+            HttpStatusCode httpStatusCode, 
+            string message, 
+            Exception inner) : base(message, inner)
         {
             this.httpStatusCode = (int)httpStatusCode;
         }
 
-        public int StatusCode { get { return this.httpStatusCode; } }
+        public int StatusCode { 
+            get { 
+                return this.httpStatusCode; 
+            } 
+        }
     }
 }

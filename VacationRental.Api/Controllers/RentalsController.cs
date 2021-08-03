@@ -27,5 +27,11 @@ namespace VacationRental.Api.Controllers
         {
             return Ok(this.rentalService.AddRental(rentalModel: model));
         }
+
+        [HttpPut]
+        public IActionResult Put(RentalViewModel model)
+        {
+            return Ok(this.rentalService.UpdateRental(rentalModel: model));
+        }
     }
 }

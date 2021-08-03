@@ -1,4 +1,7 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
@@ -13,6 +16,11 @@ namespace VacationRental.Api
 {
     public class Startup
     {
+        private static bool IsXUnitRunning()
+        {
+            return AppDomain.CurrentDomain.GetAssemblies().Any(assembly => assembly.FullName.ToLowerInvariant().StartsWith("xunit"));
+        }
+
         public Startup(IConfiguration configuration)
         {
             Configuration = configuration;
@@ -41,9 +49,12 @@ namespace VacationRental.Api
             {
                 app.UseDeveloperExceptionPage();
             }
+            
+            if (!IsXUnitRunning())
+            {
+                app.UseMiddleware<ExceptionMiddlewareExtensions>();
+            }
 
-            //app.ConfigureExceptionHandler();
-            app.UseMiddleware<ExceptionMiddlewareExtensions>();
             app.UseMvc();
             app.UseSwagger();
             app.UseSwaggerUI(opts => opts.SwaggerEndpoint("/swagger/v1/swagger.json", "VacationRental v1"));

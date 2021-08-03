@@ -1,4 +1,4 @@
-﻿using System.Text.Json;
+﻿using Newtonsoft.Json;
 
 namespace VacationRental.Api.Models
 {
@@ -8,7 +8,7 @@ namespace VacationRental.Api.Models
         public string Message { get; set; }
         public override string ToString()
         {
-            return JsonSerializer.Serialize(this);
+            return JsonConvert.SerializeObject(this);
         }
     }
 }

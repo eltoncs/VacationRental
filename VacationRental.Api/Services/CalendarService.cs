@@ -1,6 +1,6 @@
-﻿using Microsoft.Extensions.Configuration;
-using System;
+﻿using System;
 using System.Collections.Generic;
+using System.Linq;
 using System.Net;
 using VacationRental.Api.Extensions;
 using VacationRental.Api.Models;
@@ -11,16 +11,16 @@ namespace VacationRental.Api.Services
     {
         private readonly IRentalService rentalService;
         private readonly IDictionary<int, BookingViewModel> bookingsData;
-        private readonly IConfiguration configuration;
+        private readonly IDictionary<int, RentalViewModel> rentalsData;
 
         public CalendarService(
             IRentalService rentalService,
             IDictionary<int, BookingViewModel> bookingsData,
-            IConfiguration configuration)
+            IDictionary<int, RentalViewModel> rentalsData)
         {
             this.rentalService = rentalService;
             this.bookingsData = bookingsData;
-            this.configuration = configuration;
+            this.rentalsData = rentalsData;
         }
 
         public CalendarViewModel GetCalendar(
@@ -31,6 +31,8 @@ namespace VacationRental.Api.Services
             this.ValidateData(
                 rentalId: rentalId,
                 nights: nights);
+
+            var rental = this.rentalsData[rentalId];
 
             var calendar = new CalendarViewModel
             {
@@ -48,7 +50,8 @@ namespace VacationRental.Api.Services
 
                 this.AddAvailability(
                     calendar: calendar,
-                    dateCalendar: dateCalendar);
+                    dateCalendar: dateCalendar,
+                    rental: rental);
             }
 
             return calendar;
@@ -56,20 +59,49 @@ namespace VacationRental.Api.Services
 
         private void AddAvailability(
             CalendarViewModel calendar,
-            CalendarDateViewModel dateCalendar)
+            CalendarDateViewModel dateCalendar,
+            RentalViewModel rental)
         {
-            int blockingDays = int.Parse(configuration["Preferences:BlokingDays"]);
+            IEnumerable<BookingViewModel> rentalBookings = bookingsData.Values.Where(x => x.RentalId == calendar.RentalId);
+            int blockingDays = rental.PreparationTimeInDays;
 
-            foreach (var booking in bookingsData.Values)
+            foreach (var booking in rentalBookings)
             {
-                if (booking.RentalId == calendar.RentalId
-                    && booking.Start <= dateCalendar.Date && booking.Start.AddDays(booking.Nights + blockingDays) > dateCalendar.Date)
+                if (booking.Start <= dateCalendar.Date && booking.Start.AddDays(booking.Nights + blockingDays) > dateCalendar.Date)
                 {
-                    dateCalendar.Bookings.Add(new CalendarBookingViewModel { Id = booking.Id });
+                    dateCalendar.Bookings.Add(new CalendarBookingViewModel()
+                    { 
+                        Id = booking.Id,
+                        Unit = booking.UnitId
+                    });
                 }
             }
 
+            dateCalendar.PreparationTimes = this.GetAvailableUnits(
+                totalUnits: rental.Units,
+                dateCalendar: dateCalendar);
+
             calendar.Dates.Add(dateCalendar);
+        }
+
+        private List<PreparationTimeCalendarViewModel> GetAvailableUnits(
+            int totalUnits, 
+            CalendarDateViewModel dateCalendar)
+        {
+            var result = new List<PreparationTimeCalendarViewModel>();
+
+            for (int unit = 1; unit <= totalUnits; unit++)
+            {
+                if (dateCalendar.Bookings.Where(x=> x.Unit == unit).FirstOrDefault() == null)
+                {
+                    result.Add(new PreparationTimeCalendarViewModel()
+                    {
+                        UnitId = unit
+                    });
+                }
+            }
+
+            return result;
         }
 
         private void ValidateData(

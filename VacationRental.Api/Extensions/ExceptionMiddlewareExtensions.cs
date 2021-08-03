@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Http;
+using Newtonsoft.Json;
 using System;
 using System.Globalization;
-using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace VacationRental.Api.Extensions
@@ -28,7 +28,12 @@ namespace VacationRental.Api.Extensions
                 response.ContentType = "application/json";
                 response.StatusCode = error.StatusCode;
 
-                var result = JsonSerializer.Serialize(new { message = error?.Message });
+                var result = JsonConvert.SerializeObject(new 
+                    { 
+                        message = error?.Message 
+                    }
+                );
+
                 await response.WriteAsync(result);
             }
         }

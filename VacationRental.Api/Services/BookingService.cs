@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.Configuration;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net;
@@ -11,23 +11,22 @@ namespace VacationRental.Api.Services
     {
         private readonly IDictionary<int, BookingViewModel> bookingsData;
         private readonly IDictionary<int, RentalViewModel> rentalsData;
-        private readonly IConfiguration configuration;
 
         public BookingService(
             IDictionary<int, BookingViewModel> bookingsData,
-            IDictionary<int, RentalViewModel> rentalsData,
-            IConfiguration configuration)
+            IDictionary<int, RentalViewModel> rentalsData)
         {
             this.bookingsData = bookingsData;
             this.rentalsData = rentalsData;
-            this.configuration = configuration;
         }
 
         public ResourceIdViewModel AddBooking(BookingBindingModel bookingModel)
         {
             this.ValidateData(bookingModel);
 
-            if (!IsReantalAvaileble(newBooking: bookingModel))
+            (bool isAvailable, int unitId) = this.CheckRentalAvailability(newBooking: bookingModel);
+
+            if (!isAvailable)
             {
                 throw new HttpException(
                     httpStatusCode: HttpStatusCode.NotFound,
@@ -44,6 +43,7 @@ namespace VacationRental.Api.Services
                 Id = key.Id,
                 Nights = bookingModel.Nights,
                 RentalId = bookingModel.RentalId,
+                UnitId = unitId,
                 Start = bookingModel.Start.Date
             });
 
@@ -52,7 +52,7 @@ namespace VacationRental.Api.Services
 
         public BookingViewModel GetBooking(int bookingId)
         {
-            if (!bookingsData.ContainsKey(bookingId))
+            if (!this.bookingsData.ContainsKey(bookingId))
             {
                 throw new HttpException(
                     httpStatusCode: HttpStatusCode.NotFound,
@@ -62,16 +62,83 @@ namespace VacationRental.Api.Services
             return bookingsData[bookingId];
         }
 
-        private bool IsReantalAvaileble(BookingBindingModel newBooking)
+        public void CheckBookingBackwardConsistency(RentalViewModel rental)
+        {
+            var rentalBookings = this.bookingsData.Values.Where(x => x.RentalId == rental.Id).OrderBy(x => x.Start);
+            var newBookings = new Dictionary<int, BookingViewModel>();
+
+            foreach (var booking in rentalBookings)
+            {
+                (bool isAvailable, int unitId) = this.CheckRentalBackwardAvailability(
+                    newBooking: booking,
+                    tempBookingsData: newBookings,
+                    tempRental: rental);
+
+                if (!isAvailable)
+                {
+                    throw new HttpException(
+                        httpStatusCode: HttpStatusCode.Forbidden,
+                        message: "Unable to change rental");
+                }
+
+                newBookings.Add(booking.Id, booking);
+            }
+        }
+
+        private Tuple<bool, int> CheckRentalBackwardAvailability(
+            BookingViewModel newBooking,
+            IDictionary<int, BookingViewModel> tempBookingsData,
+            RentalViewModel tempRental)
+        {
+            if (tempBookingsData.Values.Count == 0)
+            {
+                return new Tuple<bool, int>(true, 1);
+            }
+
+            var ocupiedUnits = new List<int>();
+            int blockingDays = tempRental.PreparationTimeInDays;
+
+            var bookingsForRental = tempBookingsData.Values.Where(x => x.RentalId == newBooking.RentalId);
+
+            foreach (var booking in bookingsForRental)
+            {
+                bool isOcupied =
+                    (booking.Start <= newBooking.Start.Date && booking.Start.AddDays(booking.Nights + blockingDays) >
+                    newBooking.Start.Date) || (booking.Start < newBooking.Start.AddDays(newBooking.Nights + blockingDays) &&
+                    booking.Start.AddDays(booking.Nights) >= newBooking.Start.AddDays(newBooking.Nights + blockingDays)) ||
+                    (booking.Start > newBooking.Start && booking.Start.AddDays(booking.Nights + blockingDays) <
+                    newBooking.Start.AddDays(newBooking.Nights + blockingDays));
+
+                if (isOcupied)
+                {
+                    ocupiedUnits.Add(booking.UnitId);
+                }
+            }
+
+            bool isAvailable = ocupiedUnits.Count < tempRental.Units;
+
+            if (isAvailable)
+            {
+                int nextAvailableUnit = this.GetNextAvailableUnit(
+                    ocupiedUnits: ocupiedUnits,
+                    rentalUnits: tempRental.Units);
+
+                return new Tuple<bool, int>(true, nextAvailableUnit);
+            }
+
+            return new Tuple<bool, int>(false, 0);
+        }
+
+        private Tuple<bool, int> CheckRentalAvailability(BookingBindingModel newBooking)
         {
             if (this.bookingsData.Values.Count == 0)
             {
-                return true;
+                return new Tuple<bool, int>(true, 1);
             }
 
-            var ocupied = 0;
+            var ocupiedUnits = new List<int>();
             RentalViewModel rental = this.rentalsData[newBooking.RentalId];
-            int blockingDays = int.Parse(configuration["Preferences:BlokingDays"]);
+            int blockingDays = rental.PreparationTimeInDays;
 
             var bookingsForRental = this.bookingsData.Values.Where(x => x.RentalId == newBooking.RentalId);
 
@@ -86,11 +153,37 @@ namespace VacationRental.Api.Services
 
                 if (isOcupied)
                 {
-                    ocupied++;
+                    ocupiedUnits.Add(booking.UnitId);
                 }
             }
 
-            return ocupied < rental.Units;
+            bool isAvailable = ocupiedUnits.Count < rental.Units;
+
+            if (isAvailable)
+            {
+                int nextAvailableUnit = this.GetNextAvailableUnit(
+                    ocupiedUnits: ocupiedUnits,
+                    rentalUnits: rental.Units);
+
+                return new Tuple<bool, int>(true, nextAvailableUnit);
+            }
+
+            return new Tuple<bool, int>(false, 0);
+        }
+
+        private int GetNextAvailableUnit(
+            List<int> ocupiedUnits, 
+            int rentalUnits)
+        {
+            for(var unit = 1; unit <= rentalUnits; unit++)
+            {
+                if (ocupiedUnits.Where(x => x == unit).FirstOrDefault() == 0)
+                {
+                    return unit;
+                }
+            }
+
+            return 0;//never hit due to isAvailable check in CheckReantalability
         }
 
         private void ValidateData(BookingBindingModel bookingModel)

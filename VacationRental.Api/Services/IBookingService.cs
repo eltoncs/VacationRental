@@ -6,5 +6,6 @@ namespace VacationRental.Api.Services
     {
         BookingViewModel GetBooking(int bookingId);
         ResourceIdViewModel AddBooking(BookingBindingModel bookingModel);
+        void CheckBookingBackwardConsistency(RentalViewModel rental);
     }
 }
